@@ -1,0 +1,215 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Repository Organization},
+  pdfauthor={Camille Lambert},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Repository Organization}
+\author{Camille Lambert}
+\date{2026-04-30}
+
+\begin{document}
+\maketitle
+
+install.packages(``tinytex'') tinytex::install\_tinytex()
+
+\section{Project structure}\label{project-structure}
+
+\textbar{}\emph{python\_Movement\_analysis\_project: Contains the Python
+code for data handling and processing.
+\textbar{}}\_\_\_\_\_\_\_\_\_\_\_data \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0001 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0002 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0003 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0006 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0007 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0008 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0009 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0011 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0012 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_imu0013 \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit1\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RW
+\textbar{} \textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_SA
+\textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_visit2\_\_\_\_\_\_\_\_\_\_\_\_imu\_\_\_\_\_\_\_\_\_\_\_\_LF
+\textbar{} \textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_RF \textbar{}
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_LW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_RW \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_SA \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_participant\_info \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_module \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_comput\_plot \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_dsSST \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_handle\_data \textbar{} \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_Notebook \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_notebook\_python \textbar{} \textbar{}
+\textbar{}\emph{r\_Movement\_analysis\_project: Contains the R code for
+data analysis and visualization. \textbar{}
+\textbar{}}\_\_\_\_\_\_\_\_\_\_\_statisque\_analyse\_of\_results
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_analyse\_stat\_dsSST
+\textbar{} \textbar{} \textbar{}\emph{results: Contains the results of
+the analysis. \textbar{}
+\textbar{}}\_\_\_\_\_\_\_\_\_\_\_delta\_analysis \textbar{}
+\textbar\_\_\_\_\_\_\_\_\_\_\_\_Distribution\_of\_fondamental\_frequency\_by\_sensor
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_foot\_frequency\_density
+\textbar{} \textbar\_\_\_\_\_\_\_\_\_\_\_\_frequency\_summary
+
+\end{document}

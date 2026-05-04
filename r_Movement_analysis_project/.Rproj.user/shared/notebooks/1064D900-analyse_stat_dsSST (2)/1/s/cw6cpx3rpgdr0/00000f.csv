@@ -1,0 +1,26 @@
+"0","cadence_cols <- names(df_wide)[startsWith(names(df_wide), ""cadence_"")]"
+"0",""
+"0","incomplete <- df_wide %>%"
+"0","  rowwise() %>%"
+"0","  mutate(n_ok = sum(!is.na(c_across(all_of(cadence_cols))))) %>%"
+"0","  ungroup() %>%"
+"0","  filter(n_ok < length(cadence_cols))"
+"0",""
+"0","if (nrow(incomplete) > 0) {"
+"0","  cat(""Samples with missing sensor data (will be excluded from sensor-effect tests):\n"")"
+"0","  print(incomplete %>% select(sample_id, FAC, all_of(cadence_cols)))"
+"0","} else {"
+"0","  cat(""No missing values detected.\n"")"
+"0","}"
+"1","Samples with missing sensor data (will be excluded from sensor-effect tests):
+"
+"1","[38;5;246m# A tibble: 1 × 7[39m
+"
+"1","  sample_id        FAC cadence_LF cadence_RF cadence_LW cadence_RW cadence_SA
+"
+"1","  [3m[38;5;246m<chr>[39m[23m          [3m[38;5;246m<dbl>[39m[23m      [3m[38;5;246m<dbl>[39m[23m      [3m[38;5;246m<dbl>[39m[23m      [3m[38;5;246m<dbl>[39m[23m      [3m[38;5;246m<dbl>[39m[23m      [3m[38;5;246m<dbl>[39m[23m
+"
+"1","[38;5;250m1[39m imu0011_visit1     2       1.33       1.33         [31mNA[39m         [31mNA[39m       1.33
+"
+"0","# Build a list of samples to exclude from sensor-effect tests"
+"0","samples_to_exclude <- incomplete$sample_id"

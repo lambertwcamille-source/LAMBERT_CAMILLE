@@ -1,0 +1,440 @@
+---
+title: "LAMBERT_CAMILLE_r"
+author: "Camille_LAMBERT"
+co-authors: "copilot"
+date: "2026-03-17"
+output: html_document
+---
+
+
+# Statistical analysis of cadence (dsSST) vs FAC score
+
+## Objective
+
+The dsSST (deshape synchrosqueezing) algorithm extracts the fundamental walking frequency from accelerometric signals. We assess whether the cadence it estimates differs between patients of different FAC levels (Functional Ambulation Category, ordinal score from 1 to 5), and whether this relationship depends on sensor location.
+
+Each (patient × visit) pair is treated as a distinct sample. The cadence is expressed in **Hz (instantaneous frequency)** following Wu & Lin (who consider cadence "in the instantaneous sense" rather than steps/minute).
+
+## Variable types
+
+| Variable       | Nature                       | Role              |
+|:---------------|:-----------------------------|:------------------|
+| FAC_group      | Qualitative ordinal          | Between-subjects  |
+| sensor         | Qualitative nominal (5 mod.) | Within-subjects   |
+| cadence (Hz)   | Quantitative continuous      | Response variable |
+| patient_id     | Qualitative nominal (ID)     | Statistical unit  |
+
+## Methodology — two complementary analyses
+
+**Analysis 1 — Global mixed ANOVA**: `cadence ~ FAC_group × sensor`
+Tests whether groups of FAC differ globally, and whether the 5 sensors behave differently.
+
+**Analysis 2 — Effect of sensor location within each FAC group**
+Tests separately within FAC 1-3, FAC 4, FAC 5 whether sensor location matters. Hypothesis: in FAC 4-5 (autonomous gait), sensor location has little impact; in FAC 1-3 (altered gait), it may matter more (sub/super-harmonic capture by dsSST).
+
+Each separate analysis combines:
+
+- **Repeated-measures ANOVA** (parametric, assumes normality of residuals)
+- **Friedman test** (non-parametric, no distribution assumption)
+- **Shapiro-Wilk test** on residuals to justify which test to trust
+
+Post-hoc comparisons use **Bonferroni correction** (robust to heteroscedasticity between groups).
+
+Two FAC grouping schemes are compared:
+
+- **Scheme B**: {FAC 1+2+3} / {FAC 4} / {FAC 5}
+
+Two visit treatments:
+
+- Mode 1: visit1 only (10 subjects)
+- Mode 2: both visits (20 samples, treated as independent)
+
+## Packages
+
+```{r anova-packages, message=FALSE, warning=FALSE}
+required_packages <- c("tidyverse", "afex", "emmeans", "rstatix", "ggpubr")
+for (pkg in required_packages) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+}
+library(tidyverse)
+library(afex)
+library(emmeans)
+library(rstatix)
+library(ggpubr)
+```
+
+## Data loading
+
+```{r anova-load}
+PROJECT_ROOT <- "C:/Users/kapla/Documents/r et python/algorithm/algorithm de marche/data_set_IMU"
+INPUT_CSV    <- file.path(PROJECT_ROOT, "results", "cadence_vs_fac.csv")
+OUTPUT_DIR   <- file.path(PROJECT_ROOT, "results", "R_anova")
+dir.create(OUTPUT_DIR, showWarnings = FALSE, recursive = TRUE)
+
+stopifnot(file.exists(INPUT_CSV))
+df_wide <- read_csv(INPUT_CSV, show_col_types = FALSE)
+cat("CSV loaded:", nrow(df_wide), "rows\n")
+cat("Columns   :", paste(names(df_wide), collapse = ", "), "\n")
+head(df_wide)
+```
+
+### Handling missing values
+
+dsSST failed on wrist sensors (LW, RW) for patient `imu0011_visit1`. Since Friedman requires a complete balanced design (no NA) and repeated-measures ANOVA also works best on complete data, **we exclude this sample from all tests involving sensor location**. It is, however, kept in the global FAC analysis (its 3 available sensors still contribute).
+
+```{r anova-na-check}
+cadence_cols <- names(df_wide)[startsWith(names(df_wide), "cadence_")]
+
+incomplete <- df_wide %>%
+  rowwise() %>%
+  mutate(n_ok = sum(!is.na(c_across(all_of(cadence_cols))))) %>%
+  ungroup() %>%
+  filter(n_ok < length(cadence_cols))
+
+if (nrow(incomplete) > 0) {
+  cat("Samples with missing sensor data (will be excluded from sensor-effect tests):\n")
+  print(incomplete %>% select(sample_id, FAC, all_of(cadence_cols)))
+} else {
+  cat("No missing values detected.\n")
+}
+
+# Build a list of samples to exclude from sensor-effect tests
+samples_to_exclude <- incomplete$sample_id
+```
+
+## Reshape to long format and define grouping schemes
+
+```{r anova-reshape}
+df_long <- df_wide %>%
+  pivot_longer(
+    cols = starts_with("cadence_"),
+    names_to = "sensor",
+    names_prefix = "cadence_",
+    values_to = "cadence"
+  ) %>%
+  filter(!is.na(cadence)) %>%
+  mutate(
+    sensor     = factor(sensor, levels = c("LF", "RF", "LW", "RW", "SA")),
+    patient_id = factor(patient_id),
+    visit      = factor(visit),
+    sample_id  = factor(sample_id),
+    FAC        = as.integer(FAC)
+  )
+
+cat("Long format:", nrow(df_long), "rows (with NAs removed)\n")
+
+apply_schema_A <- function(df) {
+  df %>% mutate(
+    FAC_group = factor(
+      case_when(
+        FAC %in% c(1, 2) ~ "FAC1-2",
+        FAC == 3         ~ "FAC3",
+        FAC == 4         ~ "FAC4",
+        FAC == 5         ~ "FAC5"
+      ),
+      levels = c("FAC1-2", "FAC3", "FAC4", "FAC5")
+    )
+  )
+}
+
+apply_schema_B <- function(df) {
+  df %>% mutate(
+    FAC_group = factor(
+      case_when(
+        FAC %in% c(1, 2, 3) ~ "FAC1-3",
+        FAC == 4            ~ "FAC4",
+        FAC == 5            ~ "FAC5"
+      ),
+      levels = c("FAC1-3", "FAC4", "FAC5")
+    )
+  )
+}
+```
+
+# Analysis 1 — Global mixed ANOVA
+
+Tests the main effects of FAC_group and sensor, and their interaction. Uses Greenhouse-Geisser correction for sphericity (applied automatically by `afex::aov_ez`).
+
+```{r anova-global-function}
+run_mixed_anova <- function(df_long, subject_var, label) {
+  cat("\n", strrep("=", 72), "\n", sep = "")
+  cat("  ", label, "\n", sep = "")
+  cat(strrep("=", 72), "\n\n", sep = "")
+
+  # Drop samples with missing sensor data for this test
+  df_long <- df_long %>% filter(!(sample_id %in% samples_to_exclude))
+
+  # Keep only samples with ALL 5 sensors (balanced design for ANOVA mixte)
+  ok_samples <- df_long %>%
+    count(sample_id) %>%
+    filter(n == 5) %>%
+    pull(sample_id)
+  df_long <- df_long %>% filter(sample_id %in% ok_samples)
+
+  cat("-- Subjects per FAC group --\n")
+  n_per_group <- df_long %>%
+    distinct(!!sym(subject_var), FAC_group) %>%
+    count(FAC_group, name = "n")
+  print(n_per_group)
+  cat("\n")
+
+  # Mixed ANOVA
+  anova_res <- tryCatch({
+    aov_ez(
+      id = subject_var, dv = "cadence", data = df_long,
+      between = "FAC_group", within = "sensor",
+      anova_table = list(correction = "GG", es = "pes")
+    )
+  }, error = function(e) {
+    cat("/!\\ Mixed ANOVA failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (is.null(anova_res)) return(invisible(NULL))
+
+  print(anova_res)
+
+  # Post-hoc FAC_group (Bonferroni)
+  cat("\n-- Post-hoc: FAC_group (Bonferroni) --\n")
+  emm <- emmeans(anova_res, ~ FAC_group)
+  print(emm)
+  cat("\n")
+  print(pairs(emm, adjust = "bonferroni"))
+
+  # Save
+  out_tag <- gsub("[^A-Za-z0-9]", "_", label)
+  saveRDS(anova_res, file.path(OUTPUT_DIR, paste0(out_tag, "_anova.rds")))
+
+  invisible(anova_res)
+}
+```
+
+## Run the 4 global analyses
+
+```{r anova-global-run}
+df_v1 <- df_long %>% filter(visit == "visit1")
+
+res_A_v1  <- run_mixed_anova(df_v1   %>% apply_schema_A(), "patient_id", "Scheme A - visit1")
+res_B_v1  <- run_mixed_anova(df_v1   %>% apply_schema_B(), "patient_id", "Scheme B - visit1")
+res_A_all <- run_mixed_anova(df_long %>% apply_schema_A(), "sample_id",  "Scheme A - both visits")
+res_B_all <- run_mixed_anova(df_long %>% apply_schema_B(), "sample_id",  "Scheme B - both visits")
+```
+
+# Analysis 2 — Effect of sensor location within each FAC group
+
+For each FAC group (using Scheme B since it has more subjects per group), we test whether the 5 sensors give different cadence estimates. This directly tests the hypothesis that sensor placement matters in low FAC but not in high FAC.
+
+Each group is analyzed with:
+
+1. **Repeated-measures ANOVA** — parametric, for the headline result
+2. **Shapiro-Wilk** on residuals — to diagnose normality
+3. **Friedman test** — non-parametric backup
+4. **Pairwise Bonferroni post-hoc** for both tests
+
+## Analysis function
+
+```{r anova-pergroup-function}
+analyze_sensor_effect <- function(df_group, subject_var, group_label) {
+  cat("\n", strrep("-", 72), "\n", sep = "")
+  cat("  Group: ", group_label, "\n", sep = "")
+  cat(strrep("-", 72), "\n", sep = "")
+
+  # Exclude samples with missing sensors & keep only complete samples
+  df_group <- df_group %>%
+    filter(!(sample_id %in% samples_to_exclude))
+  ok_samples <- df_group %>%
+    count(sample_id) %>%
+    filter(n == 5) %>%
+    pull(sample_id)
+  df_group <- df_group %>% filter(sample_id %in% ok_samples)
+
+  n_subj <- n_distinct(df_group[[subject_var]])
+  cat("  n subjects:", n_subj, "\n\n")
+
+  if (n_subj < 2) {
+    cat("  /!\\ Need at least 2 subjects, group skipped.\n")
+    return(NULL)
+  }
+
+  out <- list(group = group_label, n = n_subj)
+
+  # 1. Repeated-measures ANOVA
+  cat("-- Repeated-measures ANOVA (cadence ~ sensor) --\n")
+  rm_anova <- tryCatch({
+    aov_ez(
+      id = subject_var, dv = "cadence", data = df_group,
+      within = "sensor",
+      anova_table = list(correction = "GG", es = "pes")
+    )
+  }, error = function(e) {
+    cat("  /!\\ Failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (!is.null(rm_anova)) {
+    print(rm_anova)
+    anova_tab <- as.data.frame(rm_anova$anova_table)
+    out$F_anova   <- anova_tab[1, "F"]
+    out$p_anova   <- anova_tab[1, "Pr(>F)"]
+    out$pes_anova <- anova_tab[1, "pes"]
+
+    # Post-hoc Bonferroni on sensors
+    cat("\n-- Post-hoc: sensor pairs (Bonferroni) --\n")
+    emm_s <- emmeans(rm_anova, ~ sensor)
+    posthoc_s <- pairs(emm_s, adjust = "bonferroni")
+    print(posthoc_s)
+
+    # 2. Shapiro on residuals (only if n >= 3)
+    if (n_subj >= 3) {
+      resids <- residuals(rm_anova$lm)
+      if (length(resids) >= 3) {
+        sw <- shapiro.test(resids)
+        cat(sprintf("\n-- Shapiro-Wilk on residuals: W = %.3f, p = %.4f --\n",
+                    sw$statistic, sw$p.value))
+        out$shapiro_p <- sw$p.value
+        if (sw$p.value < 0.05) {
+          cat("  => Normality rejected: prefer Friedman's result below.\n")
+        } else {
+          cat("  => Normality OK: ANOVA result is reliable.\n")
+        }
+      }
+    } else {
+      cat("\n-- Shapiro not computed (n < 3) --\n")
+      out$shapiro_p <- NA_real_
+    }
+  }
+
+  # 3. Friedman (non-parametric)
+  cat("\n-- Friedman test (non-parametric) --\n")
+  fr <- tryCatch({
+    df_fr <- df_group %>% select(all_of(subject_var), sensor, cadence)
+    friedman.test(y = df_fr$cadence,
+                  groups = df_fr$sensor,
+                  blocks = df_fr[[subject_var]])
+  }, error = function(e) {
+    cat("  /!\\ Failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (!is.null(fr)) {
+    print(fr)
+    out$chi2_friedman <- as.numeric(fr$statistic)
+    out$p_friedman    <- fr$p.value
+
+    # Post-hoc: pairwise Wilcoxon signed-rank (Bonferroni)
+    if (fr$p.value < 0.1) {
+      cat("\n-- Post-hoc: pairwise Wilcoxon signed-rank (Bonferroni) --\n")
+      ph <- pairwise.wilcox.test(
+        df_group$cadence, df_group$sensor,
+        paired = TRUE, p.adjust.method = "bonferroni"
+      )
+      print(ph)
+    }
+  }
+
+  return(out)
+}
+```
+
+## Run the analyses — Mode 1: visit1 only
+
+```{r anova-pergroup-v1}
+cat("\n================= MODE 1: visit1 only =================\n")
+
+df_v1_B <- df_v1 %>% apply_schema_B()
+
+results_v1 <- list()
+for (grp in c("FAC1-3", "FAC4", "FAC5")) {
+  df_grp <- df_v1_B %>% filter(FAC_group == grp)
+  results_v1[[grp]] <- analyze_sensor_effect(df_grp, "patient_id", grp)
+}
+```
+
+## Run the analyses — Mode 2: both visits
+
+```{r anova-pergroup-all}
+cat("\n================= MODE 2: both visits =================\n")
+
+df_all_B <- df_long %>% apply_schema_B()
+
+results_all <- list()
+for (grp in c("FAC1-3", "FAC4", "FAC5")) {
+  df_grp <- df_all_B %>% filter(FAC_group == grp)
+  results_all[[grp]] <- analyze_sensor_effect(df_grp, "sample_id", grp)
+}
+```
+
+## Comparative summary
+
+```{r anova-pergroup-summary}
+to_tibble <- function(results_list, mode_label) {
+  results_list %>%
+    discard(is.null) %>%
+    map_dfr(as_tibble) %>%
+    mutate(mode = mode_label, .before = 1)
+}
+
+summary_all <- bind_rows(
+  to_tibble(results_v1,  "visit1"),
+  to_tibble(results_all, "both_visits")
+) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4)))
+
+print(summary_all, width = Inf)
+
+write_csv(summary_all, file.path(OUTPUT_DIR, "summary_sensor_effect_by_FAC.csv"))
+```
+
+## Boxplots: sensor effect within each FAC group
+
+```{r anova-pergroup-plots, fig.width=12, fig.height=4}
+plot_sensor_by_group <- function(df, title) {
+  df <- df %>% filter(!(sample_id %in% samples_to_exclude))
+  ggboxplot(
+    df, x = "sensor", y = "cadence",
+    color = "sensor", palette = "jco",
+    add = "jitter", add.params = list(size = 2, alpha = 0.8)
+  ) +
+    facet_wrap(~ FAC_group, nrow = 1, scales = "free_y") +
+    labs(title = title, x = "Sensor", y = "Cadence (Hz)") +
+    theme(legend.position = "none")
+}
+
+p1 <- plot_sensor_by_group(df_v1_B,  "Mode 1 - visit1 only: sensor effect within each FAC group")
+p2 <- plot_sensor_by_group(df_all_B, "Mode 2 - both visits: sensor effect within each FAC group")
+
+ggsave(file.path(OUTPUT_DIR, "sensor_by_FAC_visit1.png"),
+       p1, width = 12, height = 4, dpi = 120)
+ggsave(file.path(OUTPUT_DIR, "sensor_by_FAC_all.png"),
+       p2, width = 12, height = 4, dpi = 120)
+
+p1
+p2
+```
+
+## How to interpret the results
+
+### For the global mixed ANOVA (Analysis 1)
+
+- **Significant FAC effect** (`p_FAC < 0.05`): cadence differs between FAC groups globally
+- **Significant interaction** (`p_inter < 0.05`): the effect of the sensor depends on the FAC group (expected in your hypothesis)
+
+### For the per-group sensor analysis (Analysis 2)
+
+The key question: **does sensor location matter?**
+
+- **FAC 4 and FAC 5**: expected p > 0.05 for both ANOVA and Friedman (sensors equivalent)
+- **FAC 1-3**: expected p < 0.05 in at least one test (sensors differ)
+
+### Decision rule when ANOVA and Friedman disagree
+
+- **Both non-significant** → robust conclusion: no sensor effect
+- **Both significant** → robust conclusion: sensor effect exists, look at post-hoc
+- **Friedman yes, ANOVA no** → trust Friedman, ANOVA was biased by outliers (verify: `shapiro_p < 0.05`?)
+- **ANOVA yes, Friedman no** → suspicious, a few extreme values may be driving the ANOVA. Report both, stay cautious.
+
+### What to watch out for
+
+- `shapiro_p < 0.05` in a group means normality is violated → rely on Friedman
+- Small `n` (especially in FAC 1-3) limits statistical power regardless of test
+- Effect size (`pes_anova`): 0.01 small, 0.06 medium, 0.14 large — often more meaningful than p-values with small n

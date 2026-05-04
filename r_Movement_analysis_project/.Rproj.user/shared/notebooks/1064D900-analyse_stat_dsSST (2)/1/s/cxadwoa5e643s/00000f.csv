@@ -1,0 +1,33 @@
+"0","to_tibble <- function(results_list, mode_label) {"
+"0","  results_list %>%"
+"0","    discard(is.null) %>%"
+"0","    map_dfr(as_tibble) %>%"
+"0","    mutate(mode = mode_label, .before = 1)"
+"0","}"
+"0",""
+"0","summary_all <- bind_rows("
+"0","  to_tibble(results_v1,  ""visit1""),"
+"0","  to_tibble(results_all, ""both_visits"")"
+"0",") %>%"
+"0","  mutate(across(where(is.numeric), ~ round(.x, 4)))"
+"0",""
+"0","print(summary_all, width = Inf)"
+"1","[38;5;246m# A tibble: 6 × 7[39m
+"
+"1","  mode        group      n F_anova p_anova pes_anova shapiro_p
+"
+"1","  [3m[38;5;246m<chr>[39m[23m       [3m[38;5;246m<chr>[39m[23m  [3m[38;5;246m<dbl>[39m[23m   [3m[38;5;246m<dbl>[39m[23m   [3m[38;5;246m<dbl>[39m[23m     [3m[38;5;246m<dbl>[39m[23m     [3m[38;5;246m<dbl>[39m[23m
+"
+"1","[38;5;250m1[39m visit1      FAC1-3     2   1       0.5       0.5     [31mNA[39m     
+"
+"1","[38;5;250m2[39m visit1      FAC4       4   0.810   0.543     0.212    0.020[4m6[24m
+"
+"1","[38;5;250m3[39m visit1      FAC5       3   0.920   0.498     0.315    0.003[4m2[24m
+"
+"1","[38;5;250m4[39m both_visits FAC1-3     3   0.659   0.637     0.248    0.789 
+"
+"1","[38;5;250m5[39m both_visits FAC4       9   1.42    0.270     0.151    0.440 
+"
+"1","[38;5;250m6[39m both_visits FAC5       7   1.06    0.345     0.150    0     
+"
+"0","write_csv(summary_all, file.path(OUTPUT_DIR, ""summary_sensor_effect_by_FAC.csv""))"

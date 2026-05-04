@@ -1,0 +1,332 @@
+---
+title: "LAMBERT_CAMILLE_r"
+author: "Camille_LAMBERT"
+co-authors: "copilot"
+date: "2026-03-17"
+output: html_document
+---
+
+# Statistical analysis of cadence (dsSST) vs FAC score
+
+## Objective
+
+The dsSST (deshape synchrosqueezing) algorithm extracts the fundamental walking frequency from accelerometric signals. We want to test whether the cadence it estimates differs between groups of patients of different FAC levels (Functional Ambulation Category, ordinal score from 1 to 5).
+
+Each (patient × visit) pair is treated as a sample, with 5 sensors per sample (LF, RF, LW, RW, SA). We use a **mixed ANOVA**: `FAC_group` as between-subjects factor, `sensor` as within-subjects factor.
+
+## Methodology
+
+We compare **two grouping schemes** of the FAC score to handle small group sizes:
+
+- **Scheme A**: {FAC 1+2} / {FAC 3} / {FAC 4} / {FAC 5} → 4 groups
+- **Scheme B**: {FAC 1+2+3} / {FAC 4} / {FAC 5} → 3 groups
+
+And **two ways of treating visits**:
+
+- Mode 1: visit1 only (10 subjects, cleanest design)
+- Mode 2: both visits (20 samples, more power but assumes independence)
+
+Total: 4 analyses to compare. Post-hoc pairwise comparisons use Bonferroni correction.
+
+## Packages
+
+```{r anova-packages, message=FALSE, warning=FALSE}
+required_packages <- c("tidyverse", "afex", "emmeans", "rstatix", "ggpubr")
+for (pkg in required_packages) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+}
+library(tidyverse)
+library(afex)
+library(emmeans)
+library(rstatix)
+library(ggpubr)
+```
+
+## Data loading
+
+The input CSV `cadence_vs_fac.csv` is produced by the Python notebook (section §9). It contains one row per (patient × visit) sample, with cadence per sensor as columns and the corresponding FAC score.
+
+```{r anova-load}
+# Absolute path to the project root
+PROJECT_ROOT <- "C:/Users/kapla/Documents/r et python/algorithm/algorithm de marche/data_set_IMU"
+INPUT_CSV    <- file.path(PROJECT_ROOT, "results", "cadence_vs_fac.csv")
+OUTPUT_DIR   <- file.path(PROJECT_ROOT, "results", "R_anova")
+dir.create(OUTPUT_DIR, showWarnings = FALSE, recursive = TRUE)
+
+stopifnot(file.exists(INPUT_CSV))
+df_wide <- read_csv(INPUT_CSV, show_col_types = FALSE)
+cat("CSV loaded:", nrow(df_wide), "rows\n")
+cat("Columns   :", paste(names(df_wide), collapse = ", "), "\n")
+head(df_wide)
+```
+
+## Reshape to long format
+
+One row = one (sample × sensor) observation.
+
+```{r anova-reshape}
+df_long <- df_wide %>%
+  pivot_longer(
+    cols = starts_with("cadence_"),
+    names_to = "sensor",
+    names_prefix = "cadence_",
+    values_to = "cadence"
+  ) %>%
+  filter(!is.na(cadence)) %>%
+  mutate(
+    sensor     = factor(sensor, levels = c("LF", "RF", "LW", "RW", "SA")),
+    patient_id = factor(patient_id),
+    visit      = factor(visit),
+    sample_id  = factor(sample_id),
+    FAC        = as.integer(FAC)
+  )
+
+cat("Long format:", nrow(df_long), "rows\n")
+cat("FAC distribution (at sample level):\n")
+df_long %>% distinct(sample_id, FAC) %>% count(FAC)
+```
+
+## Define the two FAC grouping schemes
+
+```{r anova-schemas}
+apply_schema_A <- function(df) {
+  # {1+2} / {3} / {4} / {5}  ->  4 groups
+  df %>% mutate(
+    FAC_group = factor(
+      case_when(
+        FAC %in% c(1, 2) ~ "FAC1-2",
+        FAC == 3         ~ "FAC3",
+        FAC == 4         ~ "FAC4",
+        FAC == 5         ~ "FAC5"
+      ),
+      levels = c("FAC1-2", "FAC3", "FAC4", "FAC5")
+    )
+  )
+}
+
+apply_schema_B <- function(df) {
+  # {1+2+3} / {4} / {5}  ->  3 groups
+  df %>% mutate(
+    FAC_group = factor(
+      case_when(
+        FAC %in% c(1, 2, 3) ~ "FAC1-3",
+        FAC == 4            ~ "FAC4",
+        FAC == 5            ~ "FAC5"
+      ),
+      levels = c("FAC1-3", "FAC4", "FAC5")
+    )
+  )
+}
+```
+
+## Mixed ANOVA function
+
+This function runs the complete analysis: checks, ANOVA, post-hoc, and returns a summary tibble.
+
+```{r anova-function}
+run_mixed_anova <- function(df_long, subject_var, label) {
+  cat("\n", strrep("=", 72), "\n", sep = "")
+  cat("  ANALYSIS: ", label, "\n", sep = "")
+  cat(strrep("=", 72), "\n\n", sep = "")
+
+  # Group sizes
+  cat("-- Sample sizes per FAC group --\n")
+  n_per_group <- df_long %>%
+    distinct(!!sym(subject_var), FAC_group) %>%
+    count(FAC_group, name = "n_subjects")
+  print(n_per_group)
+  cat("\n")
+
+  # Shapiro-Wilk normality by cell (only where n >= 3)
+  cat("-- Shapiro-Wilk normality per FAC_group x sensor --\n")
+  sw_results <- df_long %>%
+    group_by(FAC_group, sensor) %>%
+    summarise(
+      n = n(),
+      W = if (n() >= 3) shapiro.test(cadence)$statistic else NA_real_,
+      p = if (n() >= 3) shapiro.test(cadence)$p.value   else NA_real_,
+      .groups = "drop"
+    )
+  print(sw_results, n = Inf)
+  cat("\n")
+
+  # Mixed ANOVA via afex::aov_ez
+  # Greenhouse-Geisser correction for sphericity, partial eta-squared
+  cat("-- Mixed ANOVA --\n")
+  cat("  Formula: cadence ~ FAC_group * sensor + Error(", subject_var,
+      "/sensor)\n", sep = "")
+
+  anova_res <- tryCatch({
+    aov_ez(
+      id       = subject_var,
+      dv       = "cadence",
+      data     = df_long,
+      between  = "FAC_group",
+      within   = "sensor",
+      anova_table = list(correction = "GG", es = "pes")
+    )
+  }, error = function(e) {
+    cat("  /!\\ Mixed ANOVA failed: ", conditionMessage(e), "\n", sep = "")
+    cat("  Likely cause: n=1 in a group, or extreme imbalance.\n")
+    return(NULL)
+  })
+
+  if (is.null(anova_res)) return(NULL)
+  print(anova_res)
+
+  # Post-hoc: pairwise FAC_group (averaged over sensors), Bonferroni
+  cat("\n-- Post-hoc: FAC_group pairwise (Bonferroni) --\n")
+  emm <- emmeans(anova_res, ~ FAC_group)
+  print(emm)
+  cat("\n")
+  posthoc <- pairs(emm, adjust = "bonferroni")
+  print(posthoc)
+
+  # Post-hoc on interaction
+  cat("\n-- Interaction post-hoc: FAC_group within each sensor (Bonferroni) --\n")
+  emm_int <- emmeans(anova_res, ~ FAC_group | sensor)
+  posthoc_int <- pairs(emm_int, adjust = "bonferroni")
+  print(summary(posthoc_int))
+
+  # Compact summary for comparison table
+  anova_table <- as.data.frame(anova_res$anova_table)
+  summary_df <- tibble(
+    analysis   = label,
+    n_obs      = nrow(df_long),
+    n_subjects = n_distinct(df_long[[subject_var]]),
+    n_groups   = n_distinct(df_long$FAC_group),
+    F_FAC      = anova_table["FAC_group", "F"],
+    p_FAC      = anova_table["FAC_group", "Pr(>F)"],
+    pes_FAC    = anova_table["FAC_group", "pes"],
+    F_sensor   = anova_table["sensor", "F"],
+    p_sensor   = anova_table["sensor", "Pr(>F)"],
+    pes_sensor = anova_table["sensor", "pes"],
+    F_inter    = anova_table["FAC_group:sensor", "F"],
+    p_inter    = anova_table["FAC_group:sensor", "Pr(>F)"],
+    pes_inter  = anova_table["FAC_group:sensor", "pes"]
+  )
+
+  # Save per-analysis artifacts
+  out_tag <- gsub("[^A-Za-z0-9]", "_", label)
+  write_csv(sw_results, file.path(OUTPUT_DIR, paste0(out_tag, "_shapiro.csv")))
+  saveRDS(anova_res, file = file.path(OUTPUT_DIR, paste0(out_tag, "_anova.rds")))
+  write_csv(as.data.frame(summary(posthoc)),
+            file.path(OUTPUT_DIR, paste0(out_tag, "_posthoc_FAC.csv")))
+  write_csv(as.data.frame(summary(posthoc_int)),
+            file.path(OUTPUT_DIR, paste0(out_tag, "_posthoc_FACxsensor.csv")))
+
+  return(summary_df)
+}
+```
+
+## Run the 4 analyses
+
+### Mode 1 — visit1 only
+
+```{r anova-run-visit1}
+df_v1 <- df_long %>% filter(visit == "visit1")
+
+res_A_v1 <- run_mixed_anova(
+  df_v1 %>% apply_schema_A(),
+  subject_var = "patient_id",
+  label       = "Scheme A (FAC1-2/3/4/5) - visit1 only"
+)
+
+res_B_v1 <- run_mixed_anova(
+  df_v1 %>% apply_schema_B(),
+  subject_var = "patient_id",
+  label       = "Scheme B (FAC1-3/4/5) - visit1 only"
+)
+```
+
+### Mode 2 — both visits (sample_id as subject)
+
+Each (patient × visit) is treated as an independent sample. This is an approximation — justified by the ~1-2 week interval between visits and documented clinical evolution for several patients.
+
+```{r anova-run-allvisits}
+res_A_all <- run_mixed_anova(
+  df_long %>% apply_schema_A(),
+  subject_var = "sample_id",
+  label       = "Scheme A (FAC1-2/3/4/5) - both visits"
+)
+
+res_B_all <- run_mixed_anova(
+  df_long %>% apply_schema_B(),
+  subject_var = "sample_id",
+  label       = "Scheme B (FAC1-3/4/5) - both visits"
+)
+```
+
+## Comparative summary
+
+```{r anova-summary}
+comparison <- bind_rows(
+  res_A_v1, res_B_v1, res_A_all, res_B_all
+)
+
+comparison_rounded <- comparison %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4)))
+
+print(comparison_rounded, width = Inf)
+
+write_csv(comparison, file.path(OUTPUT_DIR, "comparison_4_analyses.csv"))
+```
+
+## Visualization: boxplots by scheme
+
+```{r anova-plots, fig.width=14, fig.height=4.5}
+plot_boxplot <- function(df, label) {
+  ggboxplot(
+    df, x = "FAC_group", y = "cadence", color = "sensor",
+    palette = "jco", add = "jitter",
+    add.params = list(size = 1.2, alpha = 0.7)
+  ) +
+    facet_wrap(~ sensor, nrow = 1) +
+    labs(title = label, x = "FAC group", y = "Cadence (steps/min)") +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 30, hjust = 1))
+}
+
+p_A_v1  <- plot_boxplot(df_v1   %>% apply_schema_A(), "Scheme A - visit1")
+p_B_v1  <- plot_boxplot(df_v1   %>% apply_schema_B(), "Scheme B - visit1")
+p_A_all <- plot_boxplot(df_long %>% apply_schema_A(), "Scheme A - both visits")
+p_B_all <- plot_boxplot(df_long %>% apply_schema_B(), "Scheme B - both visits")
+
+ggsave(file.path(OUTPUT_DIR, "boxplot_A_visit1.png"),  p_A_v1,  width = 14, height = 4.5, dpi = 120)
+ggsave(file.path(OUTPUT_DIR, "boxplot_B_visit1.png"),  p_B_v1,  width = 14, height = 4.5, dpi = 120)
+ggsave(file.path(OUTPUT_DIR, "boxplot_A_all.png"),     p_A_all, width = 14, height = 4.5, dpi = 120)
+ggsave(file.path(OUTPUT_DIR, "boxplot_B_all.png"),     p_B_all, width = 14, height = 4.5, dpi = 120)
+
+p_A_v1
+p_B_v1
+p_A_all
+p_B_all
+```
+
+## How to interpret and choose the best analysis
+
+**1. Main FAC effect (`p_FAC`)**
+
+- `p_FAC < 0.05` means the groups differ significantly in cadence.
+- Partial eta-squared (`pes_FAC`) gives the effect size: ~0.01 small, ~0.06 medium, ~0.14 large. With small n, a large `pes_FAC` combined with a non-significant p-value often reflects low power, not absence of effect.
+
+**2. Interaction (`p_inter`)**
+
+- `p_inter < 0.05`: some sensors discriminate FAC better than others. You should then pick the best sensor rather than average all 5.
+- `p_inter >= 0.05`: sensors behave similarly, averaging is acceptable.
+
+**3. visit1 only vs both visits**
+
+- Similar results between the two modes → visits add power without introducing bias.
+- Divergent results → visit dependence is a problem, prefer visit1-only (cleaner design).
+
+**4. Scheme A vs Scheme B**
+
+- Scheme A (4 groups) is finer but has n=2 in FAC1-2 and FAC3.
+- Scheme B (3 groups) is more robust statistically (n=4, 9, 7).
+- If B shows significance but A does not → A lacks power, prefer B.
+- If both show significance → A gives more clinical granularity, prefer A.
+
+**5. Always check normality (Shapiro) and sphericity (Greenhouse-Geisser, already corrected by `afex`)**
+
+If Shapiro p-values are very low across many cells, consider non-parametric alternatives (Kruskal-Wallis per sensor with Spearman correlation) for confirmation.

@@ -1,0 +1,830 @@
+---
+title: "LAMBERT_CAMILLE_r"
+author: "Camille_LAMBERT"
+co-authors: "copilot"
+date: "2026-03-17"
+output: html_document
+---
+
+# Statistical analysis of cadence (dsSST) vs FAC score
+
+## Objective
+
+The dsSST (deshape synchrosqueezing) algorithm extracts the fundamental walking frequency from accelerometric signals. We assess whether the cadence it estimates differs between patients of different FAC levels (Functional Ambulation Category, ordinal score from 1 to 5), and whether this relationship depends on sensor location.
+
+Each (patient × visit) pair is treated as a distinct sample. The cadence is expressed in **Hz (instantaneous frequency)** following Wu & Lin (who consider cadence "in the instantaneous sense" rather than steps/minute).
+
+## Variable types
+
+| Variable       | Nature                       | Role              |
+|:---------------|:-----------------------------|:------------------|
+| FAC_group      | Qualitative ordinal          | Between-subjects  |
+| sensor         | Qualitative nominal (5 mod.) | Within-subjects   |
+| cadence (Hz)   | Quantitative continuous      | Response variable |
+| patient_id     | Qualitative nominal (ID)     | Statistical unit  |
+
+## Methodology — two complementary analyses
+
+**Analysis 1 — Global mixed ANOVA**: `cadence ~ FAC_group × sensor`
+Tests whether groups of FAC differ globally, and whether the 5 sensors behave differently.
+
+**Analysis 2 — Effect of sensor location within each FAC group**
+Tests separately within FAC 1-3, FAC 4, FAC 5 whether sensor location matters. Hypothesis: in FAC 4-5 (autonomous gait), sensor location has little impact; in FAC 1-3 (altered gait), it may matter more (sub/super-harmonic capture by dsSST).
+
+Each separate analysis combines:
+
+- **Repeated-measures ANOVA** (parametric, assumes normality of residuals)
+- **Friedman test** (non-parametric, no distribution assumption)
+- **Shapiro-Wilk test** on residuals to justify which test to trust
+
+Post-hoc comparisons use **Bonferroni correction** (robust to heteroscedasticity between groups).
+
+**FAC grouping**: we use a three-level grouping that balances clinical meaning and group size:
+
+- **FAC 1-3** (altered gait, marked impact)
+- **FAC 4** (light impact, autonomous on flat ground)
+- **FAC 5** (no impact, full autonomy)
+
+Two visit treatments are compared:
+
+- Mode 1: visit1 only (10 subjects)
+- Mode 2: both visits (20 samples, treated as independent)
+
+## Packages
+
+```{r anova-packages, message=FALSE, warning=FALSE}
+required_packages <- c("tidyverse", "afex", "emmeans", "rstatix", "ggpubr")
+for (pkg in required_packages) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+}
+library(tidyverse)
+library(afex)
+library(emmeans)
+library(rstatix)
+library(ggpubr)
+```
+
+## Data loading
+
+```{r anova-load}
+PROJECT_ROOT <- "C:/Users/kapla/Documents/r et python/algorithm/algorithm de marche/data_set_IMU"
+INPUT_CSV    <- file.path(PROJECT_ROOT, "results", "cadence_vs_fac.csv")
+OUTPUT_DIR   <- file.path(PROJECT_ROOT, "results", "R_anova")
+dir.create(OUTPUT_DIR, showWarnings = FALSE, recursive = TRUE)
+
+stopifnot(file.exists(INPUT_CSV))
+df_wide <- read_csv(INPUT_CSV, show_col_types = FALSE)
+cat("CSV loaded:", nrow(df_wide), "rows\n")
+cat("Columns   :", paste(names(df_wide), collapse = ", "), "\n")
+head(df_wide)
+```
+
+### Handling missing values
+
+We miss the sensor information (LW, RW) for patient `imu0011_visit1`. Since Friedman requires a complete balanced design (no NA) and repeated-measures ANOVA also works best on complete data, **we exclude this sample from all tests involving sensor location**. It is, however, kept in the global FAC analysis (its 3 available sensors still contribute).
+
+```{r anova-na-check}
+cadence_cols <- names(df_wide)[startsWith(names(df_wide), "cadence_")]
+
+incomplete <- df_wide %>%
+  rowwise() %>%
+  mutate(n_ok = sum(!is.na(c_across(all_of(cadence_cols))))) %>%
+  ungroup() %>%
+  filter(n_ok < length(cadence_cols))
+
+if (nrow(incomplete) > 0) {
+  cat("Samples with missing sensor data (will be excluded from sensor-effect tests):\n")
+  print(incomplete %>% select(sample_id, FAC, all_of(cadence_cols)))
+} else {
+  cat("No missing values detected.\n")
+}
+
+# Build a list of samples to exclude from sensor-effect tests
+samples_to_exclude <- incomplete$sample_id
+```
+
+## Reshape to long format and define grouping schemes
+
+```{r anova-reshape}
+df_long <- df_wide %>%
+  pivot_longer(
+    cols = starts_with("cadence_"),
+    names_to = "sensor",
+    names_prefix = "cadence_",
+    values_to = "cadence"
+  ) %>%
+  filter(!is.na(cadence)) %>%
+  mutate(
+    sensor     = factor(sensor, levels = c("LF", "RF", "LW", "RW", "SA")),
+    patient_id = factor(patient_id),
+    visit      = factor(visit),
+    sample_id  = factor(sample_id),
+    FAC        = as.integer(FAC)
+  )
+
+cat("Long format:", nrow(df_long), "rows (with NAs removed)\n")
+
+apply_FAC_grouping <- function(df) {
+  df %>% mutate(
+    FAC_group = factor(
+      case_when(
+        FAC %in% c(1, 2, 3) ~ "FAC1-3",
+        FAC == 4            ~ "FAC4",
+        FAC == 5            ~ "FAC5"
+      ),
+      levels = c("FAC1-3", "FAC4", "FAC5")
+    )
+  )
+}
+```
+
+# Analysis 1 — Global mixed ANOVA
+
+Tests the main effects of FAC_group and sensor, and their interaction. Uses Greenhouse-Geisser correction for sphericity (applied automatically by `afex::aov_ez`).
+
+```{r anova-global-function}
+run_mixed_anova <- function(df_long, subject_var, label) {
+  cat("\n", strrep("=", 72), "\n", sep = "")
+  cat("  ", label, "\n", sep = "")
+  cat(strrep("=", 72), "\n\n", sep = "")
+
+  # Drop samples with missing sensor data for this test
+  df_long <- df_long %>% filter(!(sample_id %in% samples_to_exclude))
+
+  # Keep only samples with ALL 5 sensors (balanced design for ANOVA mixte)
+  ok_samples <- df_long %>%
+    count(sample_id) %>%
+    filter(n == 5) %>%
+    pull(sample_id)
+  df_long <- df_long %>% filter(sample_id %in% ok_samples)
+
+  cat("-- Subjects per FAC group --\n")
+  n_per_group <- df_long %>%
+    distinct(!!sym(subject_var), FAC_group) %>%
+    count(FAC_group, name = "n")
+  print(n_per_group)
+  cat("\n")
+
+  # Mixed ANOVA
+  anova_res <- tryCatch({
+    aov_ez(
+      id = subject_var, dv = "cadence", data = df_long,
+      between = "FAC_group", within = "sensor",
+      anova_table = list(correction = "GG", es = "pes")
+    )
+  }, error = function(e) {
+    cat("/!\\ Mixed ANOVA failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (is.null(anova_res)) return(invisible(NULL))
+
+  print(anova_res)
+
+  # Post-hoc FAC_group (Bonferroni)
+  cat("\n-- Post-hoc: FAC_group (Bonferroni) --\n")
+  emm <- emmeans(anova_res, ~ FAC_group)
+  print(emm)
+  cat("\n")
+  print(pairs(emm, adjust = "bonferroni"))
+
+  # Save
+  out_tag <- gsub("[^A-Za-z0-9]", "_", label)
+  saveRDS(anova_res, file.path(OUTPUT_DIR, paste0(out_tag, "_anova.rds")))
+
+  invisible(anova_res)
+}
+```
+
+## Run the 2 global analyses
+
+```{r anova-global-run}
+df_v1 <- df_long %>% filter(visit == "visit1")
+
+res_v1  <- run_mixed_anova(
+  df_v1   %>% apply_FAC_grouping(),
+  "patient_id",
+  "Global mixed ANOVA - visit1 only"
+)
+
+res_all <- run_mixed_anova(
+  df_long %>% apply_FAC_grouping(),
+  "sample_id",
+  "Global mixed ANOVA - both visits"
+)
+```
+
+# Analysis 2 — Effect of sensor location within each FAC group
+
+For each FAC group (using Scheme B since it has more subjects per group), we test whether the 5 sensors give different cadence estimates. This directly tests the hypothesis that sensor placement matters in low FAC but not in high FAC.
+
+Each group is analyzed with:
+
+1. **Repeated-measures ANOVA** — parametric, for the headline result
+2. **Shapiro-Wilk** on residuals — to diagnose normality
+3. **Friedman test** — non-parametric backup
+4. **Pairwise Bonferroni post-hoc** for both tests
+
+## Analysis function
+
+```{r anova-pergroup-function}
+analyze_sensor_effect <- function(df_group, subject_var, group_label) {
+  cat("\n", strrep("-", 72), "\n", sep = "")
+  cat("  Group: ", group_label, "\n", sep = "")
+  cat(strrep("-", 72), "\n", sep = "")
+
+  # Exclude samples with missing sensors & keep only complete samples
+  df_group <- df_group %>%
+    filter(!(sample_id %in% samples_to_exclude))
+  ok_samples <- df_group %>%
+    count(sample_id) %>%
+    filter(n == 5) %>%
+    pull(sample_id)
+  df_group <- df_group %>% filter(sample_id %in% ok_samples)
+
+  n_subj <- n_distinct(df_group[[subject_var]])
+  cat("  n subjects:", n_subj, "\n\n")
+
+  if (n_subj < 2) {
+    cat("  /!\\ Need at least 2 subjects, group skipped.\n")
+    return(NULL)
+  }
+
+  out <- list(group = group_label, n = n_subj)
+
+  # 1. Repeated-measures ANOVA
+  cat("-- Repeated-measures ANOVA (cadence ~ sensor) --\n")
+  rm_anova <- tryCatch({
+    aov_ez(
+      id = subject_var, dv = "cadence", data = df_group,
+      within = "sensor",
+      anova_table = list(correction = "GG", es = "pes")
+    )
+  }, error = function(e) {
+    cat("  /!\\ Failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (!is.null(rm_anova)) {
+    print(rm_anova)
+    anova_tab <- as.data.frame(rm_anova$anova_table)
+    out$F_anova   <- anova_tab[1, "F"]
+    out$p_anova   <- anova_tab[1, "Pr(>F)"]
+    out$pes_anova <- anova_tab[1, "pes"]
+
+    # Post-hoc Bonferroni on sensors
+    cat("\n-- Post-hoc: sensor pairs (Bonferroni) --\n")
+    emm_s <- emmeans(rm_anova, ~ sensor)
+    posthoc_s <- pairs(emm_s, adjust = "bonferroni")
+    print(posthoc_s)
+
+    # 2. Shapiro on residuals (only if n >= 3)
+    if (n_subj >= 3) {
+      resids <- residuals(rm_anova$lm)
+      if (length(resids) >= 3) {
+        sw <- shapiro.test(resids)
+        cat(sprintf("\n-- Shapiro-Wilk on residuals: W = %.3f, p = %.4f --\n",
+                    sw$statistic, sw$p.value))
+        out$shapiro_p <- sw$p.value
+        if (sw$p.value < 0.05) {
+          cat("  => Normality rejected: prefer Friedman's result below.\n")
+        } else {
+          cat("  => Normality OK: ANOVA result is reliable.\n")
+        }
+      }
+    } else {
+      cat("\n-- Shapiro not computed (n < 3) --\n")
+      out$shapiro_p <- NA_real_
+    }
+  }
+
+  # 3. Friedman (non-parametric)
+  # Use the wide-matrix form: rows = subjects, cols = sensors
+  # This is the most robust form and avoids level-dropping issues.
+  cat("\n-- Friedman test (non-parametric) --\n")
+  fr <- tryCatch({
+    df_fr <- df_group %>%
+      select(all_of(subject_var), sensor, cadence) %>%
+      pivot_wider(names_from = sensor, values_from = cadence) %>%
+      select(-all_of(subject_var))     # drop subject column, keep only sensor matrix
+    mat <- as.matrix(df_fr)
+    # Sanity check: no NA, equal number of subjects in each column
+    if (any(is.na(mat))) stop("Residual NA in Friedman matrix")
+    friedman.test(mat)
+  }, error = function(e) {
+    cat("  /!\\ Failed:", conditionMessage(e), "\n")
+    return(NULL)
+  })
+
+  if (!is.null(fr)) {
+    print(fr)
+    out$chi2_friedman <- as.numeric(fr$statistic)
+    out$p_friedman    <- fr$p.value
+
+    # Post-hoc: pairwise Wilcoxon signed-rank (Bonferroni)
+    if (fr$p.value < 0.1) {
+      cat("\n-- Post-hoc: pairwise Wilcoxon signed-rank (Bonferroni) --\n")
+      ph <- pairwise.wilcox.test(
+        df_group$cadence,
+        droplevels(df_group$sensor),      # force drop of unused levels
+        paired = TRUE, p.adjust.method = "bonferroni"
+      )
+      print(ph)
+    }
+  }
+
+  return(out)
+}
+```
+
+## Run the analyses — Mode 1: visit1 only
+
+```{r anova-pergroup-v1}
+cat("\n================= MODE 1: visit1 only =================\n")
+
+df_v1_grouped <- df_v1 %>% apply_FAC_grouping()
+
+results_v1 <- list()
+for (grp in c("FAC1-3", "FAC4", "FAC5")) {
+  df_grp <- df_v1_grouped %>% filter(FAC_group == grp)
+  results_v1[[grp]] <- analyze_sensor_effect(df_grp, "patient_id", grp)
+}
+```
+
+## Run the analyses — Mode 2: both visits
+
+```{r anova-pergroup-all}
+cat("\n================= MODE 2: both visits =================\n")
+
+df_all_grouped <- df_long %>% apply_FAC_grouping()
+
+results_all <- list()
+for (grp in c("FAC1-3", "FAC4", "FAC5")) {
+  df_grp <- df_all_grouped %>% filter(FAC_group == grp)
+  results_all[[grp]] <- analyze_sensor_effect(df_grp, "sample_id", grp)
+}
+```
+
+## Comparative summary
+
+```{r anova-pergroup-summary}
+to_tibble <- function(results_list, mode_label) {
+  results_list %>%
+    discard(is.null) %>%
+    map_dfr(as_tibble) %>%
+    mutate(mode = mode_label, .before = 1)
+}
+
+summary_all <- bind_rows(
+  to_tibble(results_v1,  "visit1"),
+  to_tibble(results_all, "both_visits")
+) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4)))
+
+print(summary_all, width = Inf)
+
+write_csv(summary_all, file.path(OUTPUT_DIR, "summary_sensor_effect_by_FAC.csv"))
+```
+
+## Boxplots: sensor effect within each FAC group
+
+```{r anova-pergroup-plots, fig.width=12, fig.height=4}
+plot_sensor_by_group <- function(df, title) {
+  df <- df %>% filter(!(sample_id %in% samples_to_exclude))
+  ggboxplot(
+    df, x = "sensor", y = "cadence",
+    color = "sensor", palette = "jco",
+    add = "jitter", add.params = list(size = 2, alpha = 0.8)
+  ) +
+    facet_wrap(~ FAC_group, nrow = 1, scales = "free_y") +
+    labs(title = title, x = "Sensor", y = "Cadence (Hz)") +
+    theme(legend.position = "none")
+}
+
+p1 <- plot_sensor_by_group(df_v1_grouped,  "Mode 1 - visit1 only: sensor effect within each FAC group")
+p2 <- plot_sensor_by_group(df_all_grouped, "Mode 2 - both visits: sensor effect within each FAC group")
+
+ggsave(file.path(OUTPUT_DIR, "sensor_by_FAC_visit1.png"),
+       p1, width = 12, height = 4, dpi = 120)
+ggsave(file.path(OUTPUT_DIR, "sensor_by_FAC_all.png"),
+       p2, width = 12, height = 4, dpi = 120)
+
+p1
+p2
+```
+
+## How to interpret the results
+
+### For the global mixed ANOVA (Analysis 1)
+
+- **Significant FAC effect** (`p_FAC < 0.05`): cadence differs between FAC groups globally
+- **Significant interaction** (`p_inter < 0.05`): the effect of the sensor depends on the FAC group (expected in your hypothesis)
+
+### For the per-group sensor analysis (Analysis 2)
+
+The key question: **does sensor location matter?**
+
+- **FAC 4 and FAC 5**: expected p > 0.05 for both ANOVA and Friedman (sensors equivalent)
+- **FAC 1-3**: expected p < 0.05 in at least one test (sensors differ)
+
+### Decision rule when ANOVA and Friedman disagree
+
+- **Both non-significant** → robust conclusion: no sensor effect
+- **Both significant** → robust conclusion: sensor effect exists, look at post-hoc
+- **Friedman yes, ANOVA no** → trust Friedman, ANOVA was biased by outliers (verify: `shapiro_p < 0.05`?)
+- **ANOVA yes, Friedman no** → suspicious, a few extreme values may be driving the ANOVA. Report both, stay cautious.
+
+### What to watch out for
+
+- `shapiro_p < 0.05` in a group means normality is violated → rely on Friedman
+- Small `n` (especially in FAC 1-3) limits statistical power regardless of test
+- Effect size (`pes_anova`): 0.01 small, 0.06 medium, 0.14 large — often more meaningful than p-values with small n
+
+---
+
+# Visualization of the statistical results
+
+Four complementary figures are produced here, all based on the **both-visits** dataset (more robust):
+
+1. **Main boxplot** — cadence by FAC group with significance brackets (headline figure)
+2. **Faceted boxplot** — sensor × FAC group (supports the sensor-equivalence claim)
+3. **Forest plot** — effect sizes (η²p) for all tested effects
+4. **Spaghetti plot** — per-patient trajectory across sensors (clinical insight into outliers)
+
+## Setup for plotting
+
+```{r viz-setup, message=FALSE, warning=FALSE}
+# Additional package for significance brackets (ggpubr already loaded)
+if (!requireNamespace("ggsignif", quietly = TRUE)) install.packages("ggsignif")
+library(ggsignif)
+
+# Thesis-style theme: sober colors, clean, readable
+theme_thesis <- function(base_size = 12) {
+  theme_bw(base_size = base_size) +
+    theme(
+      panel.grid.minor    = element_blank(),
+      panel.grid.major.x  = element_blank(),
+      strip.background    = element_rect(fill = "grey92", colour = NA),
+      strip.text          = element_text(face = "bold", size = base_size),
+      plot.title          = element_text(face = "bold", size = base_size + 1,
+                                         margin = margin(b = 8)),
+      plot.subtitle       = element_text(size = base_size - 1, colour = "grey30",
+                                         margin = margin(b = 10)),
+      plot.caption        = element_text(size = base_size - 2, colour = "grey40",
+                                         hjust = 0, margin = margin(t = 10)),
+      legend.position     = "bottom",
+      legend.title        = element_text(face = "bold"),
+      axis.title          = element_text(face = "bold")
+    )
+}
+
+# Sober color palettes
+fac_colors    <- c("FAC1-3" = "#8C6BB1", "FAC4" = "#4292C6", "FAC5" = "#238B45")
+sensor_colors <- c("LF" = "#D94801", "RF" = "#FD8D3C",
+                   "LW" = "#3182BD", "RW" = "#6BAED6",
+                   "SA" = "#31A354")
+
+# Prepare the long dataset used in all plots
+df_viz <- df_long %>%
+  filter(!(sample_id %in% samples_to_exclude)) %>%
+  apply_FAC_grouping()
+```
+
+## Figure 1 — Main boxplot: cadence by FAC group with significance brackets
+
+This is the headline figure. It shows the main finding: cadence differs between FAC groups, with FAC 1-3 significantly lower than FAC 5.
+
+```{r viz-main-boxplot, fig.width=7, fig.height=5.5}
+# Retrieve the significant post-hoc comparisons from Analysis 1 (both visits)
+# FAC1-3 vs FAC5 : p = 0.019 (*)
+# FAC1-3 vs FAC4 : p = 0.079 (ns but marginal)
+
+p_main <- ggplot(df_viz, aes(x = FAC_group, y = cadence, fill = FAC_group)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA, width = 0.55) +
+  geom_jitter(aes(color = FAC_group), width = 0.12, size = 1.8, alpha = 0.6) +
+  scale_fill_manual(values = fac_colors, guide = "none") +
+  scale_color_manual(values = fac_colors, guide = "none") +
+  geom_signif(
+    comparisons = list(c("FAC1-3", "FAC5"),
+                       c("FAC1-3", "FAC4")),
+    annotations = c("p = 0.019 *", "p = 0.079 (ns)"),
+    y_position  = c(2.55, 2.40),
+    tip_length  = 0.015, vjust = 0.1, textsize = 3.5
+  ) +
+  labs(
+    title    = "Cadence as a function of FAC group",
+    subtitle = "Mixed ANOVA effect of FAC: F(2,16) = 4.99, p = 0.021, \u03B7\u00B2p = 0.38",
+    x        = "FAC group",
+    y        = "Cadence (Hz)",
+    caption  = paste0(
+      "Boxes show the distribution of cadence across all 5 sensors and all available visits.\n",
+      "Significance from Bonferroni post-hoc on estimated marginal means. N = 19 samples (1 excluded due to missing sensor data)."
+    )
+  ) +
+  ylim(NA, 2.75) +
+  theme_thesis()
+
+ggsave(file.path(OUTPUT_DIR, "fig1_cadence_by_FAC.png"),
+       p_main, width = 7, height = 5.5, dpi = 150, bg = "white")
+p_main
+```
+
+## Figure 2 — Faceted boxplot: sensor × FAC group
+
+This figure shows that **within each FAC group**, the 5 sensors give comparable cadence estimates. It supports the statistical conclusion of no sensor effect, and helps the reader see where the only divergent values are (outliers are made visible).
+
+```{r viz-facet-boxplot, fig.width=11, fig.height=4.5}
+p_facet <- ggplot(df_viz, aes(x = sensor, y = cadence, fill = sensor)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA, width = 0.6) +
+  geom_jitter(aes(color = sensor), width = 0.15, size = 1.6, alpha = 0.7) +
+  facet_wrap(~ FAC_group, nrow = 1,
+             labeller = labeller(FAC_group = function(x) {
+               paste0(x, "\n(n = ", table(df_viz$FAC_group)[x] / 5, " samples)")
+             })) +
+  scale_fill_manual(values = sensor_colors, guide = "none") +
+  scale_color_manual(values = sensor_colors, guide = "none") +
+  labs(
+    title    = "Cadence per sensor, within each FAC group",
+    subtitle = "No significant sensor effect detected in any group (ANOVA and Friedman, all p > 0.22)",
+    x        = "Sensor location",
+    y        = "Cadence (Hz)",
+    caption  = paste0(
+      "LF = Left Foot, RF = Right Foot, LW = Left Wrist, RW = Right Wrist, SA = Sacrum.\n",
+      "For FAC 5, Shapiro-Wilk rejected normality (p < 0.001) due to one outlier value (imu0003_visit1, SA sensor);\n",
+      "Friedman's non-parametric test confirms the non-significance (p = 0.74)."
+    )
+  ) +
+  theme_thesis() +
+  theme(axis.text.x = element_text(size = 10))
+
+ggsave(file.path(OUTPUT_DIR, "fig2_sensor_by_FAC.png"),
+       p_facet, width = 11, height = 4.5, dpi = 150, bg = "white")
+p_facet
+```
+
+## Figure 3 — Radar plot: sensor "signature" per FAC group
+
+A radar plot gives a compact visual signature of each FAC group across the 5 sensors. For each group we show:
+
+- **Branches (5)**: one per sensor (LF, RF, LW, RW, SA)
+- **Central point on each branch**: median cadence of that sensor within the group
+- **Connecting polygon**: links the 5 medians, forming the group signature
+- **Continuous shaded ring**: median ± 1 standard deviation, shown as a filled polygon around the median line
+
+This is an intuitive way to compare the three FAC groups at a glance. A compact polygon with narrow shading = sensors agree tightly; a distorted polygon with wide shading = sensors disagree.
+
+```{r viz-radar-data}
+# Compute median + SD per (FAC_group, sensor)
+# The 5 branches are fixed in the order LF, RF, LW, RW, SA to keep the shape consistent.
+sensor_order <- c("LF", "RF", "LW", "RW", "SA")
+
+radar_stats <- df_viz %>%
+  mutate(sensor = factor(sensor, levels = sensor_order)) %>%
+  group_by(FAC_group, sensor) %>%
+  summarise(
+    median_val = median(cadence, na.rm = TRUE),
+    sd_val     = sd(cadence, na.rm = TRUE),
+    n          = n(),
+    .groups    = "drop"
+  ) %>%
+  # Groups with n=1 have SD=NA; replace with 0 for plotting (no shading)
+  mutate(sd_val = ifelse(is.na(sd_val), 0, sd_val),
+         lower  = pmax(median_val - sd_val, 0),   # clamp at 0 (cadence >= 0)
+         upper  = median_val + sd_val)
+
+cat("-- Radar statistics: median \u00B1 SD per sensor per FAC group --\n")
+print(radar_stats %>% mutate(across(where(is.numeric), ~ round(.x, 3))))
+
+write_csv(radar_stats, file.path(OUTPUT_DIR, "radar_median_sd.csv"))
+```
+
+```{r viz-radar-plot, fig.width=11, fig.height=5}
+# Build the radar data: we need to close the polygon by repeating the first row.
+# We use coord_polar() on a categorical x-axis (sensor), with the trick
+# to have a closed shape by duplicating the first point at the end.
+
+close_polygon <- function(df) {
+  first_row <- df %>% filter(sensor == sensor_order[1]) %>% mutate(sensor_num = length(sensor_order) + 1)
+  df <- df %>% mutate(sensor_num = as.integer(sensor))
+  bind_rows(df, first_row)
+}
+
+radar_closed <- radar_stats %>%
+  group_by(FAC_group) %>%
+  group_modify(~ close_polygon(.x)) %>%
+  ungroup()
+
+# We facet by FAC_group (3 panels side by side), each with its own radar.
+p_radar <- ggplot(radar_closed, aes(x = sensor_num, y = median_val,
+                                     group = FAC_group, color = FAC_group, fill = FAC_group)) +
+  # SD band (continuous)
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.20, color = NA) +
+  # Median polygon
+  geom_polygon(alpha = 0, linewidth = 0.9) +
+  # Median points
+  geom_point(aes(x = sensor_num, y = median_val), size = 3) +
+  # Convert to polar coordinates
+  coord_polar(start = -pi/5, clip = "off") +
+  # x-axis: ticks at each sensor, labels LF/RF/LW/RW/SA
+  scale_x_continuous(breaks = 1:length(sensor_order),
+                     labels = sensor_order,
+                     limits = c(0.5, length(sensor_order) + 0.5)) +
+  # y-axis: cadence from 0 to a bit above the data
+  scale_y_continuous(limits = c(0, 2.5),
+                     breaks = c(0.5, 1.0, 1.5, 2.0),
+                     labels = c("0.5", "1.0", "1.5", "2.0 Hz")) +
+  scale_color_manual(values = fac_colors, guide = "none") +
+  scale_fill_manual(values  = fac_colors, guide = "none") +
+  facet_wrap(~ FAC_group, nrow = 1,
+             labeller = labeller(FAC_group = function(x) {
+               n_per_group <- sapply(x, function(g) {
+                 sum(df_viz$FAC_group == g) / length(sensor_order)
+               })
+               paste0(x, "\n(n = ", n_per_group, " samples)")
+             })) +
+  labs(
+    title    = "Sensor signature per FAC group (radar plot)",
+    subtitle = "Median cadence (solid polygon) \u00B1 1 SD (shaded band) across the 5 sensors",
+    x        = NULL,
+    y        = NULL,
+    caption  = paste0(
+      "A compact, regular polygon with narrow shading \u2192 sensors give consistent cadence within the group.\n",
+      "An irregular polygon or wide shading \u2192 some sensors diverge from the group pattern.\n",
+      "FAC 1-3 shows wider variability; FAC 4 and FAC 5 show tighter polygons."
+    )
+  ) +
+  theme_thesis() +
+  theme(
+    panel.grid.major.x = element_line(color = "grey85", linewidth = 0.3),
+    panel.grid.major.y = element_line(color = "grey85", linewidth = 0.3),
+    axis.text.x        = element_text(face = "bold", size = 11),
+    axis.text.y        = element_text(size = 8, color = "grey40"),
+    strip.text         = element_text(face = "bold")
+  )
+
+ggsave(file.path(OUTPUT_DIR, "fig3_radar_sensors.png"),
+       p_radar, width = 11, height = 5, dpi = 150, bg = "white")
+p_radar
+```
+
+### How to read Figure 3
+
+- The **solid colored polygon** is the "fingerprint" of the FAC group — ideally a compact pentagon centered on the median cadence.
+- The **shaded ring around the polygon** shows the spread (±1 SD). A thin ring means the sensors agree tightly within that group; a thick or irregular ring means some sensors deviate.
+- Compare the **size** of the three polygons across groups: higher FAC → larger polygon (higher cadence).
+- Compare the **regularity** across groups: a distorted pentagon reveals that some sensors (the "long branches") give systematically different values.
+
+## Figure 4 — Bland-Altman plots: inter-sensor agreement
+
+The Bland-Altman plot is the gold-standard method to assess **agreement** (not just absence of difference) between two measurement methods. For each sample we plot:
+
+- **x-axis**: mean of the two sensors (the "true" cadence estimate)
+- **y-axis**: difference between the two sensors
+- **solid line**: mean difference (bias)
+- **dashed lines**: limits of agreement (LoA) = bias ± 1.96 × SD of differences
+
+**Interpretation**:
+
+- Narrow LoA → the two sensors can be used interchangeably in clinical practice
+- Wide LoA → the sensors disagree substantially on some samples
+- Bias ≠ 0 → one sensor systematically over- or under-estimates compared to the other
+- We stratify by FAC group to reveal whether agreement **degrades in low-FAC patients** (the hypothesis that low-autonomy patients are more sensitive to sensor placement).
+
+Four clinically relevant pairs are compared:
+
+1. **LF vs RF** — left/right symmetry of foot measurements
+2. **LW vs RW** — left/right symmetry of wrist measurements
+3. **LF vs SA** — foot vs sacrum (both clinically recommended placements)
+4. **LF vs LW** — foot vs wrist (reveals harmonic-capture artifacts)
+
+```{r viz-bland-altman-function}
+#' Build a Bland-Altman dataframe for two sensors
+build_ba_data <- function(df_wide, sens1, sens2) {
+  col1 <- paste0("cadence_", sens1)
+  col2 <- paste0("cadence_", sens2)
+  df_wide %>%
+    filter(!is.na(.data[[col1]]) & !is.na(.data[[col2]])) %>%
+    mutate(
+      mean_val = (.data[[col1]] + .data[[col2]]) / 2,
+      diff_val = .data[[col1]] - .data[[col2]],
+      pair     = paste0(sens1, " vs ", sens2)
+    ) %>%
+    select(sample_id, FAC, mean_val, diff_val, pair)
+}
+
+#' Compute bias and limits of agreement per FAC group
+compute_loa <- function(ba_df) {
+  ba_df %>%
+    group_by(FAC_group, pair) %>%
+    summarise(
+      n        = n(),
+      bias     = mean(diff_val, na.rm = TRUE),
+      sd_diff  = sd(diff_val, na.rm = TRUE),
+      loa_low  = bias - 1.96 * sd_diff,
+      loa_high = bias + 1.96 * sd_diff,
+      .groups  = "drop"
+    ) %>%
+    mutate(
+      sd_diff  = ifelse(is.na(sd_diff), 0, sd_diff),
+      loa_low  = ifelse(is.na(loa_low),  bias, loa_low),
+      loa_high = ifelse(is.na(loa_high), bias, loa_high)
+    )
+}
+```
+
+```{r viz-bland-altman-data}
+df_wide_ok <- df_wide %>% filter(!(sample_id %in% samples_to_exclude))
+
+pairs_to_plot <- list(
+  c("LF", "RF"),
+  c("LW", "RW"),
+  c("LF", "SA"),
+  c("LF", "LW")
+)
+
+ba_all <- purrr::map_dfr(
+  pairs_to_plot,
+  ~ build_ba_data(df_wide_ok, .x[1], .x[2])
+) %>%
+  apply_FAC_grouping() %>%
+  mutate(pair = factor(pair,
+                       levels = sapply(pairs_to_plot, function(p) paste(p, collapse = " vs "))))
+
+loa_all <- compute_loa(ba_all)
+
+cat("-- Bias and 95% Limits of Agreement per FAC group and sensor pair --\n")
+print(loa_all %>% mutate(across(where(is.numeric), ~ round(.x, 3))))
+
+write_csv(loa_all, file.path(OUTPUT_DIR, "bland_altman_loa.csv"))
+```
+
+```{r viz-bland-altman-plot, fig.width=11, fig.height=9}
+p_ba <- ggplot(ba_all, aes(x = mean_val, y = diff_val, color = FAC_group)) +
+  geom_rect(data = loa_all,
+            aes(xmin = -Inf, xmax = Inf,
+                ymin = loa_low, ymax = loa_high,
+                fill = FAC_group),
+            inherit.aes = FALSE,
+            alpha = 0.08) +
+  geom_hline(yintercept = 0, color = "grey50", linetype = "dotted", linewidth = 0.4) +
+  geom_hline(data = loa_all,
+             aes(yintercept = loa_low, color = FAC_group),
+             linetype = "dashed", linewidth = 0.5, alpha = 0.75) +
+  geom_hline(data = loa_all,
+             aes(yintercept = loa_high, color = FAC_group),
+             linetype = "dashed", linewidth = 0.5, alpha = 0.75) +
+  geom_hline(data = loa_all,
+             aes(yintercept = bias, color = FAC_group),
+             linetype = "solid", linewidth = 0.6, alpha = 0.85) +
+  geom_point(size = 2.3, alpha = 0.85) +
+  facet_grid(pair ~ FAC_group, scales = "free_x") +
+  scale_color_manual(values = fac_colors, guide = "none") +
+  scale_fill_manual(values = fac_colors, guide = "none") +
+  labs(
+    title    = "Bland-Altman analysis of inter-sensor agreement",
+    subtitle = "Stratified by FAC group. Solid line = bias, dashed lines = 95% limits of agreement",
+    x        = "Mean cadence of the two sensors (Hz)",
+    y        = "Difference between the two sensors (Hz)",
+    caption  = paste0(
+      "Wide LoA \u2192 substantial disagreement on some samples (check FAC 1-3).\n",
+      "Narrow LoA around 0 \u2192 sensors can be used interchangeably (check FAC 5).\n",
+      "Groups with n=1 show bias only (no LoA computable)."
+    )
+  ) +
+  theme_thesis() +
+  theme(
+    strip.text.y = element_text(face = "bold", size = 10, angle = 0),
+    strip.text.x = element_text(face = "bold", size = 10),
+    panel.spacing = unit(0.6, "lines")
+  )
+
+ggsave(file.path(OUTPUT_DIR, "fig4_bland_altman.png"),
+       p_ba, width = 11, height = 9, dpi = 150, bg = "white")
+p_ba
+```
+
+### How to read Figure 4
+
+Each row is a **sensor pair**, each column is a **FAC group**. For each panel:
+
+- The **horizontal solid line** = mean difference (bias). Near zero = no systematic difference.
+- The **horizontal dashed lines** = 95% limits of agreement (LoA). Tight around zero = excellent agreement.
+- The **shaded band** makes the LoA visible at a glance.
+- **Each point** is one patient-visit sample.
+
+**What to look for in your data**:
+
+- **LF vs RF** and **LW vs RW** → if LoA tight around 0, confirms bilateral symmetry of gait.
+- **LF vs SA** → both "reliable" placements; close agreement expected.
+- **LF vs LW** → critical test. If LoA widens at FAC 1-3 but stays tight at FAC 4-5, visually confirms the hypothesis that sensor placement matters more in low-FAC patients.
+
+## All figures summary
+
+The full set of figures saved in `results/R_anova/`:
+
+- `fig1_cadence_by_FAC.png` — headline result (significant FAC effect)
+- `fig2_sensor_by_FAC.png` — sensor equivalence within each FAC group (boxplots)
+- `fig3_radar_sensors.png` — sensor signature per FAC group (radar plot)
+- `fig4_bland_altman.png` — Bland-Altman agreement analysis
+- `radar_median_sd.csv` — median and SD values used in the radar
+- `bland_altman_loa.csv` — bias and LoA values per pair and group
