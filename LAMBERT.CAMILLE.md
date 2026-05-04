@@ -5,7 +5,7 @@ The de shape synchrosqueezing transform (dsSST) extracts the instantaneous frequ
 
 The reacher question behind this work is: Is the detection of walk cadence by the deshape synchrosqueezing on acceleration data the same for sensor position on the wrist incomparaison with sensor on the feet for stroke patient who can walk without physical assistance ?
 
-The goal of this work is to asset the capacity of the dsSST algorithm to found the fundamental frequency from accelerometer data of sensor worn at the feets, wrists, sacrum of stroke patients. There is a clinical score called the Functional Ambulation Category (FAC) that is used to evaluate the capacity of a patient to walk. The patients with a FAC score of 3 or more can walk without physical assistance. We will focus on these patients in this work beacause they are the population who are going to be able to walk in ecological environment.
+The goal of this work is to asset the capacity of the dsSST algorithm to found the fundamental frequency from accelerometer data of sensor worn at the feets, wrists, sacrum of a stroke patient.
 
 The deshape synchrosqueezing transform is a powerful tool to extract the fundamental frequency of a sustained harmonic walk from accelerometer data. The pipeline used in this work have been done from the article of Wu et Harezlak, « Application of de-shape synchrosqueezing to estimate gait cadence from a single-sensor accelerometer placed in different body locations ».
 Change have been made to stabilise the short time ceptrum transform with the implementation of a long pass filter. This method is based on the article of Lin et al., « Wave-Shape Function Analysis -- When Cepstrum Meets Time-Frequency Analysis».
@@ -17,13 +17,13 @@ This folder has been made with the help of the work of Victor Fernando Lopes De 
 ### Code construction
 The code construction has been helping a lot with the co-pilot IA and Claude IA.
 
-In this folder you will find a python directory who contains the code for handeling the data information and extracting the fondamental frequency frome the dsSST pipeline .
+In this folder you will find a python directory who contains the code for handeling the data information and extracting the fondamental frequency from the dsSST pipeline .
 
 In the R directory you will find the code for the statistical analysis of the results and the visualisation of the results.
 
 ### Analysis of the results 
 
-The result show us that the sensor location doesn't a significative impact in the ability to found the foundamental frequency of the walk with the dsSST algorithm.
+The result show us that the sensor location doesn't have a significant impact on the ability to find the fundamental frequency of the walk with the dsSST algorithm.
 
 
 ### Bibliography

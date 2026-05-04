@@ -19,7 +19,6 @@ The repository is organized as follows:
 You have three main directories in the python_Movement_analysis_project. 
     - 1  the data directory where you can find the data used for this work. 
     - 2 the module directory where you can find the code for handling the data and processing with the dsSST.
-    - 3 the comput_plot directory where you can find the code for plotting the time frequency representations.
 
 The dsSST is the heart the pipe line found in the module directory will allow you to compute a accelerometer signal and to extract the fundamental frequency of this periodic signal. You will have also the information on the time frequency representation of the signal with the Short Time Fourier Transform and the de shape synchrosqueezing transform.
 The important package in this work is the ssqueezepy package of "John Muradeli, ssqueezepy, 2020. GitHub repository, https://github.com/OverLordGoldDragon/ssqueezepy/. DOI: 10.5281/zenodo.5080508"
@@ -28,7 +27,7 @@ The other packages needed are : numpy , panda, matplotlib, scipy, librosa
 The data used in this work is the one from the data of Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ».
 
 ## The r_Movement_analysis_project
-In this direcory you can found the rmd statisque_analyse_of_results where you can found the code for the statistical analysis of the results. The code contain box plot visualisation of the frequency distribution on every sensor, overlaping of the frequency distribution for the feets sensor, the difference between the right foot and the wrist and the sacrum by a scatter plot.
+In this direcory you can found the rmd statisque_analyse_of_results where you can found the code for the statistical analysis of the results. 
 
 
 
