@@ -3,8 +3,20 @@ import sys
 import subprocess
 from tkinter import SW
 
+# kick fix for the problem of the import of ssqueezepy in Mac and Windows
+def install(package):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", package])
+    except subprocess.CalledProcessError:
+        # Fallback pour macOS / Python géré par le système
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "--user", package])
 
-subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "ssqueezepy"])
+try:
+    import ssqueezepy
+except ImportError:
+    install("ssqueezepy")
+    import ssqueezepy
+
 
 # Import necessary libraries
 import numpy as np 
@@ -216,10 +228,10 @@ def dsSST(Signal_norm ,frequency,gamma=10**-9,lambda_reg=1,lifter_threshold=10,w
     # -------------------------------------------------------------------------
     # Conversion of c* indices to real frequencies (Hz)
     instantaneous_frequency = freq_axis[c_opt]  # equivalent to c_opt * (fs / 2M)
-    peak_frequency_hz = float(np.median(instantaneous_frequency[instantaneous_frequency > 0]))
+    median_instantaneous_frequency = float(np.median(instantaneous_frequency[instantaneous_frequency > 0]))
 
     return (
-        peak_frequency_hz,
+        median_instantaneous_frequency,
         V_Zxx, V_f, V_t,
         C_lifted, U, W,
         Tx, freq_axis

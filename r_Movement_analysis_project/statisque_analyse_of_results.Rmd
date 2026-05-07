@@ -56,6 +56,7 @@ library(tidyverse)
 ```{r anova-load}
 # Use the normalized path to selection the good directory
 project_root <- normalizePath("..")
+results_dir  <- file.path(project_root, "results")
 frequency_summary<- file.path(results_dir, "frequency_summary.csv")
 
 # load the data frame of the frequency summary
