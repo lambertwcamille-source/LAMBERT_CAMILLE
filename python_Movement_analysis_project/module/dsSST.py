@@ -111,7 +111,7 @@ def dsSST(Signal_norm ,frequency,gamma=10**-9,lambda_reg=1,lifter_threshold=10,w
     V_Zxx_modulate=np.abs(V_Zxx)**0.3# modulate by a power law to enhance the fundamental frequency component in the cepstrum like in the paper of Hau Tieng Wu and Chen-Yun Lin
     C = np.fft.fft(V_Zxx_modulate, axis=0)# the cepstrum can be done by a ifft or a fft , we do a fft like in the paper of Hau Tieng Wu and Chen-Yun Lin 
     
-    """the iSTCT is numerically unstaable to stabilise it you have two solution:
+    """the iSTCT is numerically unstable to stabilise it you have two solution:
     .do a long long-pass lifter of the cepstrum to isolate the fundamental quefrency component in the cepstrum 
     .discretize I by a suitable weighting, for example, by the Jacobian of I, so that the iSTCT is defined on the uniform frequency grid."""
     

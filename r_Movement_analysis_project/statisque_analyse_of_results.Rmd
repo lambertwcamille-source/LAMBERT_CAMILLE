@@ -92,7 +92,7 @@ print(t_test_result)
 ```
 ## Discussion on the result
 
-We can see that the p-value is 0.3632, which means that there is not a significant difference between the two groups. 
+We can see that the p-value is 0.1801, which means that there is not a significant difference between the two groups. 
 In the step 2 you can see the same fundamental frequency in every sensor. Only the sacrum a the second visit have a different fundamental frequency but it is not significant.
 
 
