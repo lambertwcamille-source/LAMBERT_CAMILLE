@@ -1,5 +1,5 @@
 ---
-title: " Can the deshape synchrosqueezing transform (dsSST) extract the walk instantaneous frequency from accelerometer data of stroke patients with sensors on the wrist, feet and sacrum ?"
+title: " The ability to detect walking instantaneous frequency using acceleration data from wrist-worn wearable sensors in stroke patient. "
 author: "Camille_LAMBERT"
 co-authors: "Claude IA and Copilot IA"
 date: "2026-05-11"

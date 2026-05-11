@@ -7517,7 +7517,7 @@ a.anchor-link {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h1 id="Can-the-deshape-synchrosqueezing-transform-(dsSST)-extract-the-walk-instantaneous-frequency-from-accelerometer-data-of-stroke-patients-with-sensors-on-the-wrist,-feet-and-sacrum-?">Can the deshape synchrosqueezing transform (dsSST) extract the walk instantaneous frequency from accelerometer data of stroke patients with sensors on the wrist, feet and sacrum ?<a class="anchor-link" href="#Can-the-deshape-synchrosqueezing-transform-(dsSST)-extract-the-walk-instantaneous-frequency-from-accelerometer-data-of-stroke-patients-with-sensors-on-the-wrist,-feet-and-sacrum-?">¶</a></h1><p>Authors : Camille LAMBERT
+<h1 id="The-ability-to-detect-walking-instantaneous-frequency-using-acceleration-data-from-wrist-worn-wearable-sensors-in-stroke-patient.">The ability to detect walking instantaneous frequency using acceleration data from wrist-worn wearable sensors in stroke patient.<a class="anchor-link" href="#The-ability-to-detect-walking-instantaneous-frequency-using-acceleration-data-from-wrist-worn-wearable-sensors-in-stroke-patient.">¶</a></h1><p>Authors : Camille LAMBERT
 Co-authors : Claude IA, Copilot IA</p>
 <h2 id="0.-Available-data-and-code">0. Available data and code<a class="anchor-link" href="#0.-Available-data-and-code">¶</a></h2><p>The data used in this work is from the article of Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ». The dataset is available in <a href="https://zenodo.org/records/10534055">https://zenodo.org/records/10534055</a><br/>
 The code is available at the address <a href="https://github.com/lambertwcamille-source/LAMBERT_CAMILLE.git">https://github.com/lambertwcamille-source/LAMBERT_CAMILLE.git</a></p>
@@ -7551,22 +7551,22 @@ Output : the instantaneous frequency of the walk for each sensor location and ea
 Aim : extract the instantaneous frequency of the walk from the deshape synchrosqueezing   pipeline<br/>
 Input : the parameters of the deshape synchrosqueezing pipeline.<br/>
 Output : the instantaneous frequency of the walk for each sensor location and each visit.</p>
-<p>In the notebook you have the notebook of the data visualisation and the statistical analysis of the results. The main result of this work is computed in this work.<br/>
+<p>In the main directory, you have the notebook for the data visualisation and the statistical analysis of the results. The main result of this work is computed in this work.<br/>
 The pipeline is made with the synchrosqueezing function created by John Muradeli, ssqueezepy, 2020. GitHub repository, <a href="https://github.com/OverLordGoldDragon/ssqueezepy/">https://github.com/OverLordGoldDragon/ssqueezepy/</a>. DOI: 10.5281/zenodo.5080508</p>
-<h2 id="Notebook-construction">Notebook construction<a class="anchor-link" href="#Notebook-construction">¶</a></h2><p>This notebook performs the following steps to analyse the cadence of walking using IMU data:</p>
+<h2 id="Main-construction">Main construction<a class="anchor-link" href="#Main-construction">¶</a></h2><p>This main performs the following steps to analyse the cadence of walking using IMU data:</p>
 <ol>
 <li>Upload the library and configure the analysis parameters, including the sampling frequency and figure display settings.</li>
 <li>Load the dataset and processing the IMU signals.</li>
 </ol>
 <p>This work has been made with the utilisation of Claude IA and Co Pilot IA.</p>
-<p>The time frequency  analysis is performed using the deshape synchrosqueezing transform (dsSST) algorithm, which allows us to extract the fundamental frequency of walking from the accelerometer signals. The construction of the pipeline is made from the article of Wu et Harezlak, « Application of de-shape synchrosqueezing to estimate gait cadence from a single-sensor accelerometer placed in different body locations ».</p>
-<p>This notebook is working with the dataset provided by Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ». The patient walked with an IMU sensor on their wrist/feet/sacrum, and the data was collected during different visits. The goal of this analysis is to extract the fundamental frequency information from the IMU signals .</p>
+<p>The time frequency  analysis is performed using the deshape synchrosqueezing transform (dsSST) algorithm, which allows us to extract the instantaneous frequency of walking from the accelerometer signals. The construction of the pipeline is made from the article of Wu et Harezlak, « Application of de-shape synchrosqueezing to estimate gait cadence from a single-sensor accelerometer placed in different body locations ».</p>
+<p>This notebook is working with the dataset provided by Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ». The patient walked with an IMU sensor on their wrist/feet/sacrum, and the data was collected during different visits. The goal of this analysis is to extract the instantaneous frequency information from the IMU signals .</p>
 <p>The directory structure of the project is inspired by the work of Victor Fernando Lopes De Souza's activity_acc_clustering directory.</p>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=82203f5c">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8e90f8a9">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7576,7 +7576,7 @@ The pipeline is made with the synchrosqueezing function created by John Muradeli
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=a7267ff4">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=b29a5acb">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7665,7 +7665,7 @@ The pipeline is made with the synchrosqueezing function created by John Muradeli
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=f317f129">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=8b0fbe02">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
