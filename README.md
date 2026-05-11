@@ -8,7 +8,6 @@ In this work you will fond 3 main directories. The first one the python_Movement
 You are able to found also the LAMBERT.Camille foulders who contain the information background and the reasons for this work around the necessity of the instantaneous frequency of the walk.  
 
 The repository is organized as follows:  
-The repository is organized as follows:  
 - `python_Movement_analysis_project/`: Contains the Python code for data handling and processing.  
 - `r_Movement_analysis_project/`: Contains the R code for data analysis and visualization.  
 - `results/`: Contains the results of the analysis.  
