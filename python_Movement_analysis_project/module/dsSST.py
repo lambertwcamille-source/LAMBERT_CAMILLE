@@ -115,8 +115,8 @@ def dsSST(Signal_norm ,frequency,gamma=10**-9,lambda_reg=1,lifter_threshold=10,w
     .do a long long-pass lifter of the cepstrum to isolate the fundamental quefrency component in the cepstrum 
     .discretize I by a suitable weighting, for example, by the Jacobian of I, so that the iSTCT is defined on the uniform frequency grid."""
     
-    # Borne haute de fréquence qu'on veut laisser passer dans U(f)
-    # Exclure les quefrencies inférieurs à ce seuil normalment compris entre [10,20] selon lin et al 2018
+    # High frequency threshold to pass in U(f)
+    # Exclude the quefrencies below this threshold, normally between [10,20] according to Lin et al. 2018
     C_lifted = np.copy(C)
     C_lifted[:lifter_threshold, :] = 0  # We want to do a long long-pass lifter to isolate the fundamental quefrency component in the cepstrum
     
@@ -125,9 +125,9 @@ def dsSST(Signal_norm ,frequency,gamma=10**-9,lambda_reg=1,lifter_threshold=10,w
     # Build quefrency axis from STFT frequency step
     # iSTC: U(f) = C(q=1/f)  — evaluate cepstrum at quefrency q = 1/f
     N= len(V_f)
-    delta_f =(V_f[1] - V_f[0])  # résolution en quefrency
+    delta_f =(V_f[1] - V_f[0])  # resolution in quefrency
 
-    q_axis=np.arange(N)/(N*delta_f)  # axe des quefrencies
+    q_axis=np.arange(N)/(N*delta_f)  # quefrency axis
     U=interpolate.interp1d(q_axis, C_lifted, axis=0, bounds_error=False, fill_value=0)((1.0 / V_f))
     
     # -------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def dsSST(Signal_norm ,frequency,gamma=10**-9,lambda_reg=1,lifter_threshold=10,w
         # update : score = data attachment term + best transition score
         df[t, :]        = log_terms + scores_matrix[c_range, backtrack[t, :]]
 
-    # ---- "Backtracking" : reconstruction du chemin optimal ----
+    # ---- "Backtracking" : build optimal path ----
     # We start from the final time step (choosing the best bin), then move backward in time following the predecessors stored in `backtrack`.
     c_opt     = np.zeros(interval_len, dtype=int)
     c_opt[-1] = np.argmax(df[-1, :])
