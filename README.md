@@ -24,7 +24,9 @@ You have three main directories in the python_Movement_analysis_project.
 The HTML file for the pyhton_Movement_analysis_project is in the main file. There is the explanation of the notebook and  the code for handling the data and processing with the dsSST.  
 
 The dsSST is the heart the pipe line found in the module directory will allow you to compute a accelerometer signal and to extract the instantaneous frequency of this periodic signal. You will have also the information on the time frequency representation of the signal with the Short Time Fourier Transform and the de shape synchrosqueezing transform. 
-The important package in this work is the ssqueezepy package of "John Muradeli, ssqueezepy, 2020. GitHub repository,   https://github.com/OverLordGoldDragon/ssqueezepy/. DOI: 10.5281/zenodo.5080508"  
+  
+The important package in this work is the ssqueezepy package of "John Muradeli, ssqueezepy, 2020. GitHub repository,   https://github.com/OverLordGoldDragon/ssqueezepy/. 
+DOI: 10.5281/zenodo.5080508"  
 
 The data used in this work is the one from the data of Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ».
 
