@@ -4,7 +4,10 @@ This work have been done with the help of Claude IA and Copilot IA.
 
 This folder has been made with the help of the work of Victor Fernando Lopes De Souza. 
 
-In this work you will fond 3 main directories. The first one the python_Movement_analysis_project contains the code for handling the data and processing them. The r_Movement_analysis_project contains the code for the analysis of the data and visualisation of them. The last one is the results directory where you can find the results of the analysis.  
+In this work you will fond 3 main directories. 
+The first one the python_Movement_analysis_project contains the code for handling the data and processing them. 
+The r_Movement_analysis_project contains the code for the analysis of the data and visualisation of them. 
+The last one is the results directory where you can find the results of the analysis.  
 You are able to found also the LAMBERT.Camille foulders who contain the information background and the reasons for this work around the necessity of the instantaneous frequency of the walk.  
 
 The repository is organized as follows:  
