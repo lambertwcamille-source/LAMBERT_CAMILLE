@@ -5,24 +5,26 @@ This work have been done with the help of Claude IA and Copilot IA.
 This folder has been made with the help of the work of Victor Fernando Lopes De Souza.
 
 In this work you will fond 3 main directories. The first one the python_Movement_analysis_project contains the code for handling the data and processing them. The r_Movement_analysis_project contains the code for the analysis of the data and visualisation of them. The last one is the results directory where you can find the results of the analysis.
-You are able to found also the LAMBERT.Camille foulders who contain the information background and the reasons for this work around the necessity of the foundamental frequency of the walk.
+You are able to found also the LAMBERT.Camille foulders who contain the information background and the reasons for this work around the necessity of the instantaneous frequency of the walk.
 
 The repository is organized as follows:
 The repository is organized as follows:
 - `python_Movement_analysis_project/`: Contains the Python code for data handling and processing.
 - `r_Movement_analysis_project/`: Contains the R code for data analysis and visualization.
 - `results/`: Contains the results of the analysis.
-- `LAMBERT.Camille/`: Contains background information and the rationale for this work
+- `LAMBERT.Camille/`: Contains background information and the rationale for this work. There are in the Main file of the python_Movement_analysis_project and in the r_Movement_analysis_project. There are explained the code of each project and the main result of this work.
 - `Readme/`: Contains information about the project and its structure.
 
 ## python_Movement_analysis_project
 You have three main directories in the python_Movement_analysis_project. 
     - 1  the data directory where you can find the data used for this work. 
     - 2 the module directory where you can find the code for handling the data and processing with the dsSST.
+    - 3 the main directory where you can find the main_notebook for the data handling and processing.
 
-The dsSST is the heart the pipe line found in the module directory will allow you to compute a accelerometer signal and to extract the fundamental frequency of this periodic signal. You will have also the information on the time frequency representation of the signal with the Short Time Fourier Transform and the de shape synchrosqueezing transform.
+The HTML file for the pyhton_Movement_analysis_project is in the main file. There is the explanation of the notebook and  the code for handling the data and processing with the dsSST.
+
+The dsSST is the heart the pipe line found in the module directory will allow you to compute a accelerometer signal and to extract the instantaneous frequency of this periodic signal. You will have also the information on the time frequency representation of the signal with the Short Time Fourier Transform and the de shape synchrosqueezing transform. 
 The important package in this work is the ssqueezepy package of "John Muradeli, ssqueezepy, 2020. GitHub repository, https://github.com/OverLordGoldDragon/ssqueezepy/. DOI: 10.5281/zenodo.5080508"
-The other packages needed are : numpy , panda, matplotlib, scipy, librosa
 
 The data used in this work is the one from the data of Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ».
 
