@@ -1,28 +1,28 @@
 ---
-title: "LAMBERT_CAMILLE_r"
+title: "Main_r"
 author: "Camille_LAMBERT"
 co-authors: "Claude IA and Copilot IA"
-date: "2026-03-17"
+date: "2026-05-11"
 output: html_document
 ---
 
 # Statistical analysis of fundamental frequency in patient 0001
 
-From the results of the python_Movement_analysis_project, we are going to analyse the fundamental frequency found in every sensor. 
+From the results of the python_Movement_analysis_project, we are going to analyse the instantaneous frequency found in every sensor. 
   
-We have only one patient so we are going to make a t-test between the feet and the other sensor (wrist and sacrum) to see if there is a significant difference in the fundamental frequency funded by the dsSST algorithm.
+We have only one patient so we are going to make a t-test between the feet and the other sensor (wrist and sacrum) to see if there is a significant difference in the instantaneous frequency funded by the dsSST algorithm.
   
 ## Objective
-The Goal of this work is the asset the capacity of the dsSST algorithm to find the fundamental frequency in stroke patient with different sensor position.
+The Goal of this work is the asset the capacity of the dsSST algorithm to find the instantaneous frequency in stroke patient with different sensor position.
 
-The fundamental frequency is expressed in **Hz**
+The instantaneous frequency is expressed in **Hz**
 
 ## Variable types
 
 | Variable                     | Nature                       | Role              |
 |:-----------------------------|:-----------------------------|:------------------|
 | sensor                       | Qualitative nominal (5 mod.) | Within-subjects   |
-| fundamental frequency (Hz)   | Quantitative continuous      | Response variable |
+| instantaneous frequency (Hz) | Quantitative continuous      | Response variable |
 | patient_id                   | Qualitative nominal (ID)     | Statistical unit  |
 
 ## Methodology 
@@ -33,7 +33,7 @@ The step of the R project are the following:
   
 -Step 2: Load the data 
   
--Step 3: T-test between the feet and the other sensor (wrist and sacrum) 
+-Step 3: Friedman test between the different sensor position (feet, wrist and sacrum) to see if there is a significant difference between the sensors position.
 
 
 
@@ -66,33 +66,36 @@ df_frequency_summary <- read_csv(frequency_summary, show_col_types = FALSE)
 ```
 
 
-## Step 3: T-test between the feet and the other sensor (wrist and sacrum)
-Make a t-test to visualise the difference between the feet and the other sensor (wrist and sacrum). 
-Beacause of the few data we have we are going to group the wrist the sacrum in one group and the feet in another group. To enhance the statistical power of the test.
+## Step 3: Friedman test between the different sensor positions (feet, wrist and sacrum) to see if there is a significative difference between the different sensor positions.
+
+Make a Friedman test quantifies the difference found in each sensors. We selected this test because we have a small sample size and the data is not normally distributed. The Friedman test is a non-parametric test that compares the medians of three or more groups.
+
+Frist we need to reshape the data to have one row per visit and one column per sensor. This will allow us to perform the Friedman test on the peak frequency values for each sensor.
 
 ```{r}
-## Step 3: T-test between the feet and the other sensors
+# Reshape the data: one row per visit, one column per sensor
+wide_data <- df_frequency_summary %>%
+  select(visit, sensor, peak_frequency_hz) %>%
+  pivot_wider(names_from = sensor, values_from = peak_frequency_hz) %>%
+  select(-visit)   # keep only the numeric columns for ICC
 
-# Creat the group "feet" (LF, RF) vs "other" (LW, RW, SA)
-df_test <- df_frequency_summary %>%
-  mutate(
-    group = case_when(
-      sensor %in% c("LF", "RF")          ~ "feet",
-      sensor %in% c("LW", "RW", "SA")    ~ "other",
-      )
-  )
-
-# T-test (we are going to use the t-test for independent samples because we have only one patient and we want to compare the two groups))
-t_test_result <- t.test(
-  peak_frequency_hz ~ group,
-  data = df_test
-)
-print(t_test_result)
-
+wide_data
 ```
+
+Than we compute the Friedman test
+
+```{r}
+# Friedman test : sensors give different frequency ?
+friedman_result <- friedman.test(as.matrix(wide_data))
+friedman_result
+```
+
+
+
+
 ## Discussion on the result
 
-We can see that the p-value is 0.1801, which means that there is not a significant difference between the two groups. 
+We can see that the p-value is 0.5578, which means that there is not a significant difference between the two groups. 
 In the step 2 you can see the same fundamental frequency in every sensor. Only the sacrum a the second visit have a different fundamental frequency but it is not significant.
 
 

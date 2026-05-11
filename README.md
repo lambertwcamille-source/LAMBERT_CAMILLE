@@ -29,6 +29,40 @@ The data used in this work is the one from the data of Zhou et al., « Dataset 
 ## The r_Movement_analysis_project
 In this direcory you can found the rmd statisque_analyse_of_results where you can found the code for the statistical analysis of the results. 
 
+## Project structure
+
+```
+python_Movement_analysis_project/    # Python code for data handling and processing
+├── data/
+│   └── imu0001/
+│       ├── visit1/
+│       │   └── imu/
+│       │       ├── LF/
+│       │       ├── RF/
+│       │       ├── LW/
+│       │       ├── RW/
+│       │       └── SA/
+│       └── visit2/
+│           └── imu/
+│               ├── LF/
+│               ├── RF/
+│               ├── LW/
+│               ├── RW/
+│               └── SA/
+├── module/
+│   ├── dsSST/
+│   └── handle_data/
+└── Notebook/
+    └── notebook_python/
+
+r_Movement_analysis_project/         # R code for data analysis and visualization
+├── statisque_analyse_of_results/
+└── analyse_stat_dsSST/
+
+results/                             # Analysis results
+├── RF_visit1_analysis/
+└── frequency_summary/
+```
 
 
 ## Bibliography 
