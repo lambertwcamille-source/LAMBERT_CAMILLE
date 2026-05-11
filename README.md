@@ -1,5 +1,4 @@
-# Prediction of walking periods with the combination of the de shape synchrosqueezing transform and the sustained harmonic walking algorithm
-
+# The ability to detect walking instantaneous frequency using acceleration data from wrist-worn wearable sensors in stroke patient.
 This work have been done with the help of Claude IA and Copilot IA. 
 
 This folder has been made with the help of the work of Victor Fernando Lopes De Souza. 
