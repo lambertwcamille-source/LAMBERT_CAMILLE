@@ -32,7 +32,7 @@ DOI: 10.5281/zenodo.5080508"
 The data used in this work is the one from the data of Zhou et al., « Dataset for Monitoring and Visualizing Stroke Rehabilitation Progress using Wearable Sensors (IMU) ».
 
 ## The r_Movement_analysis_project
-In this direcory you can found the rmd statisque_analyse_of_results where you can found the code for the statistical analysis of the results. 
+In this direcory you can found the rmd Main_notebook_Movement_analysis_project_r where you can found the code for the statistical analysis of the results. 
 
 ## Project structure
 
@@ -57,12 +57,15 @@ python_Movement_analysis_project/    # Python code for data handling and process
 ├── module/
 │   ├── dsSST/
 │   └── handle_data/
-└── Notebook/
-    └── notebook_python/
+└── Main/
+    └── Main_notebook_python/
+    └── LAMBERT_CAMILLE/
 
 r_Movement_analysis_project/         # R code for data analysis and visualization
-├── statisque_analyse_of_results/
-└── analyse_stat_dsSST/
+├── Main_notebook_Movement_analysis_project_r/
+└── Main.Rproj/
+└── LAMBERT_CAMILLE/
+
 
 results/                             # Analysis results
 ├── RF_visit1_analysis/
